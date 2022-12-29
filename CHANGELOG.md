@@ -1,5 +1,11 @@
 # Changelog
 
+## OxChain 0.1.2 (2022-12-29)
+
+### Changed
+
+- Structs moved into their own files.
+
 ## OxChain 0.1.1 (2022-12-28)
 
 ### Added
