@@ -1,3 +1,5 @@
+use crate::hashable::Hashable;
+use crate::Hash;
 use chrono::Utc;
 use sha2::{Digest, Sha256};
 use std::fmt;
@@ -14,19 +16,32 @@ pub struct Transaction {
     pub sequence: u64,
 }
 
+pub struct Transactions(pub Vec<Transaction>);
+
 impl fmt::Display for Transaction {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "\t\tid={}", self.id)
     }
 }
 
-pub struct Transactions(pub Vec<Transaction>);
-
 impl fmt::Display for Transactions {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         self.0
             .iter()
             .fold(Ok(()), |result, transaction| result.and_then(|_| writeln!(f, "{}", transaction)))
+    }
+}
+
+impl Hashable for Transaction {
+    fn hash(&self) -> Hash {
+        let mut hasher = Sha256::new();
+        hasher.update(self.sender.as_bytes());
+        hasher.update(self.recipient.as_bytes());
+        hasher.update(self.amount.to_be_bytes());
+        hasher.update(self.sequence.to_be_bytes());
+        let hash = hasher.finalize();
+        let hash: Hash = hash.into();
+        hash
     }
 }
 
@@ -43,26 +58,17 @@ impl Transaction {
             timestamp,
             sequence,
         };
-        Self::process(&mut tx);
+        process(&mut tx);
         tx
     }
-    pub fn process(&mut self) {
-        self.id = hex::encode(self.calculate_hash());
-    }
+}
 
-    fn calculate_hash(&mut self) -> [u8; 32] {
-        let data = serde_json::json!({
-            "sender": self.sender.as_bytes(),
-            "recipient": self.recipient.as_bytes(),
-            "amount": self.amount,
-            "sequence":self.sequence,
-        });
-        self.sequence += 1;
+pub fn verify(transaction: &Transaction) -> bool {
+    false
+}
 
-        let mut hasher = Sha256::new();
-        hasher.update(data.to_string().as_bytes());
-        let hash = hasher.finalize();
-        let hash: [u8; 32] = hash.into();
-        hash
-    }
+pub fn process(transaction: &mut Transaction) {
+    let hash = transaction.hash();
+    transaction.sequence += 1;
+    transaction.id = hex::encode(hash);
 }

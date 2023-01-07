@@ -1,30 +1,28 @@
+use crate::Hash;
 use sha2::{Digest, Sha256};
 
-pub fn find_merkle_root(transactions: &mut Vec<String>) -> String {
-    println!("find merkle tree for transactions={:?}", transactions);
-    let list: Vec<String> = create_merkle_root(transactions);
-    list[0].clone()
+pub fn find_merkle_root(transactions: Vec<String>) -> String {
+    create_merkle_root(transactions)[0].clone()
 }
 
-fn create_merkle_root(transactions: &mut Vec<String>) -> Vec<String> {
+fn create_merkle_root(transactions: Vec<String>) -> Vec<String> {
     if transactions.len() == 1 {
         return vec![transactions[0].clone()];
-    }
-
-    if transactions.len() % 2 == 1 {
-        transactions.push(transactions.last().unwrap().to_owned());
     }
     let mut tx1;
     let mut tx2;
     let mut new_list: Vec<String> = Vec::new();
     for i in (0..transactions.len()).step_by(2) {
         tx1 = hex::decode(transactions.get(i).unwrap()).unwrap();
-        tx2 = hex::decode(transactions.get(i + 1).unwrap()).unwrap();
-
+        if i == transactions.len() - 1 {
+            tx2 = hex::decode(transactions.get(i).unwrap()).unwrap();
+        } else {
+            tx2 = hex::decode(transactions.get(i + 1).unwrap()).unwrap();
+        }
         let a = sha256d(&mut tx1, &mut tx2);
         new_list.push(a);
     }
-    create_merkle_root(&mut new_list)
+    create_merkle_root(new_list)
 }
 
 fn sha256d(a: &mut [u8], b: &mut [u8]) -> String {
@@ -42,7 +40,7 @@ fn sha256d(a: &mut [u8], b: &mut [u8]) -> String {
 fn sha256(bytes: &[u8]) -> Vec<u8> {
     let mut hasher = Sha256::new();
     hasher.update(bytes);
-    let mut hash = hasher.finalize();
+    let hash = hasher.finalize();
     let x: [u8; 32] = hash.into();
     Vec::from(x)
 }
@@ -60,19 +58,37 @@ fn reverse_byte_array(arr: &mut [u8]) {
     }
 }
 
+pub fn hash_to_binary_representation(hash: Hash) -> String {
+    let mut res: String = String::default();
+
+    for c in hash {
+        res.push_str(&format!("{:b}", c));
+    }
+    res
+}
+
 #[cfg(test)]
 mod test {
+    use crate::utility::file_utils::read_file_line_by_line;
     use crate::utility::hash_utils::find_merkle_root;
 
     #[test]
     fn test_find_merkle_root_bitcoin_block170_transactions() {
-        let mut bitcoin_block170_transactions = vec![
-            "b1fea52486ce0c62bb442b530a3f0132b826c74e473d1f2c220bfa78111c5082".to_string(),
-            "f4184fc596403b9d638783cf57adfe4c75c605f6356fbc91338530e9831e9e16".to_string(),
-        ];
+        let filepath = "resources/BitcoinBlock170TXs.txt";
+        let data = read_file_line_by_line(filepath);
 
         let bitcoin_block170_merkle_root = "7dac2c5666815c17a3b36427de37bb9d2e2c5ccec3f8633eb91a4205cb4c10ff";
-        let root = find_merkle_root(&mut bitcoin_block170_transactions);
+        let root = find_merkle_root(data.unwrap());
         assert_eq!(bitcoin_block170_merkle_root.to_string(), root);
+    }
+
+    #[test]
+    fn test_find_merkle_root_bitcoin_block286819_transactions() {
+        let filepath = "resources/BitcoinBlock286819TXs.txt";
+        let data = read_file_line_by_line(filepath);
+
+        let bitcoin_block286819_merkle_root = "871714dcbae6c8193a2bb9b2a69fe1c0440399f38d94b3a0f1b447275a29978a";
+        let root = find_merkle_root(data.unwrap());
+        assert_eq!(bitcoin_block286819_merkle_root.to_string(), root);
     }
 }

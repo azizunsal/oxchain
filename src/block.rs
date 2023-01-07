@@ -1,5 +1,8 @@
 use crate::transaction::{Transaction, Transactions};
-use crate::utility::hash_utils::find_merkle_root;
+use crate::utility::hash_utils::{find_merkle_root, hash_to_binary_representation};
+
+use crate::hashable::Hashable;
+use crate::Hash;
 use chrono::Utc;
 use sha2::{Digest, Sha256};
 use std::fmt;
@@ -28,6 +31,21 @@ impl fmt::Display for Block {
     }
 }
 
+impl Hashable for Block {
+    fn hash(&self) -> Hash {
+        let mut hasher = Sha256::new();
+        hasher.update(self.id.to_be_bytes());
+        hasher.update(self.previous_hash.as_bytes());
+        hasher.update(self.timestamp.to_be_bytes());
+        hasher.update(self.nonce.to_be_bytes());
+        let tx_list: Vec<String> = self.transactions.0.iter().map(|tx| tx.id.clone()).collect();
+        let merkle_root = find_merkle_root(tx_list);
+        hasher.update(merkle_root.as_bytes());
+        let hash = hasher.finalize();
+        hash.into()
+    }
+}
+
 impl Block {
     pub fn new(id: u64, previous_hash: String) -> Self {
         Self {
@@ -43,16 +61,16 @@ impl Block {
     pub fn mine(&mut self) {
         let s = Instant::now();
         println!("Started to mine block #{}", self.id);
-        let mut tx_list: Vec<String> = self.transactions.0.iter().map(|tx| tx.id.clone()).collect();
-        self.merkle_root = find_merkle_root(&mut tx_list);
+        let tx_list: Vec<String> = self.transactions.0.iter().map(|tx| tx.id.clone()).collect();
+        self.merkle_root = find_merkle_root(tx_list);
         loop {
             if self.nonce > 0 && self.nonce % 1000000 == 0 {
                 println!("Still working on block #{}, nonce={}.", self.id, self.nonce);
             }
-            let hash = self.calculate_hash();
-            let binary_hash = Block::hash_to_binary_representation(hash);
+            let hash: Hash = self.hash();
+            let binary_hash = hash_to_binary_representation(hash);
             if binary_hash.starts_with(DIFFICULTY_PREFIX) {
-                let hash_str = hex::encode(&hash);
+                let hash_str = hex::encode(hash);
                 self.hash = hash_str;
                 break;
             }
@@ -65,29 +83,6 @@ impl Block {
             self.nonce,
             self.hash
         );
-    }
-    pub fn calculate_hash(&self) -> [u8; 32] {
-        let data = serde_json::json!({
-            "id": self.id,
-            "previous_hash" : self.previous_hash,
-            "timestamp": self.timestamp,
-            "nonce": self.nonce,
-            "merkle_root": self.merkle_root
-        });
-
-        let mut hasher = Sha256::new();
-        hasher.update(data.to_string().as_bytes());
-        let hash = hasher.finalize();
-        hash.into()
-    }
-
-    fn hash_to_binary_representation(hash: [u8; 32]) -> String {
-        let mut res: String = String::default();
-
-        for c in hash {
-            res.push_str(&format!("{:b}", c));
-        }
-        res
     }
 
     pub fn add_transaction(&mut self, transaction: Option<Transaction>) -> bool {

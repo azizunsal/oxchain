@@ -1,5 +1,6 @@
 use crate::transaction::Transaction;
 
+use crate::transaction;
 use rand::{rngs::OsRng, RngCore};
 use x25519_dalek::{PublicKey, StaticSecret};
 
@@ -11,6 +12,7 @@ pub struct Wallet {
 
 impl Wallet {
     const XCHACHA20_POLY1305_NONCE_SIZE: usize = 24;
+
     pub fn new(passphrase: &str, name: Option<&str>) -> Self {
         let name = match name {
             Some(name) => name.to_string(),
@@ -37,9 +39,8 @@ impl Wallet {
         if amount < 0.0 {
             return None;
         }
-
         let mut tx = Transaction::new(self.public_key, recipient, amount);
-        tx.process();
+        transaction::process(&mut tx);
         Some(tx)
     }
     fn sign(&self) {
